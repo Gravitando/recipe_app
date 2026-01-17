@@ -6,27 +6,40 @@ import '../models/recipe.dart';
 /// FREE tier: 150 requests/day
 /// Sign up at: https://spoonacular.com/food-api
 class SpoonacularApiService {
-  // Get your FREE API key from: https://spoonacular.com/food-api/console#Dashboard
-  // Replace with your own API key
-  static const String apiKey = 'YOUR_API_KEY_HERE';
+  // Your Spoonacular API Key
+  static const String apiKey = '17087e92e86040eca15fbb452726ff7b';
   static const String baseUrl = 'https://api.spoonacular.com/recipes';
 
   /// Fetch random recipes (fast and diverse)
   Future<List<Recipe>> fetchRandomRecipes({int number = 50}) async {
     try {
+      print('🔄 Fetching $number recipes from Spoonacular...');
+
       final response = await http.get(
         Uri.parse('$baseUrl/random?apiKey=$apiKey&number=$number'),
       ).timeout(const Duration(seconds: 15));
 
+      print('📡 Response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final recipes = data['recipes'] as List;
-        return recipes.map((recipe) => _convertToRecipe(recipe)).toList();
+        final convertedRecipes = recipes.map((recipe) => _convertToRecipe(recipe)).toList();
+
+        print('✅ Successfully loaded ${convertedRecipes.length} recipes from Spoonacular');
+        return convertedRecipes;
+      } else if (response.statusCode == 401) {
+        print('❌ Error 401: Invalid API key');
+        return [];
+      } else if (response.statusCode == 402) {
+        print('❌ Error 402: Daily limit exceeded (150 requests/day)');
+        return [];
+      } else {
+        print('❌ Error ${response.statusCode}');
+        return [];
       }
-      print('Error: ${response.statusCode}');
-      return [];
     } catch (e) {
-      print('Error fetching random recipes: $e');
+      print('❌ Error fetching random recipes: $e');
       return [];
     }
   }
@@ -34,6 +47,8 @@ class SpoonacularApiService {
   /// Search recipes by query
   Future<List<Recipe>> searchRecipes(String query, {int number = 20}) async {
     try {
+      print('🔍 Searching Spoonacular for: $query');
+
       final response = await http.get(
         Uri.parse('$baseUrl/complexSearch?apiKey=$apiKey&query=$query&number=$number&addRecipeInformation=true&fillIngredients=true'),
       ).timeout(const Duration(seconds: 15));
@@ -41,11 +56,12 @@ class SpoonacularApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final results = data['results'] as List;
+        print('✅ Found ${results.length} results');
         return results.map((recipe) => _convertToRecipe(recipe)).toList();
       }
       return [];
     } catch (e) {
-      print('Error searching recipes: $e');
+      print('❌ Error searching recipes: $e');
       return [];
     }
   }
@@ -53,6 +69,8 @@ class SpoonacularApiService {
   /// Fetch recipes by cuisine
   Future<List<Recipe>> fetchByCuisine(String cuisine, {int number = 20}) async {
     try {
+      print('🌍 Fetching $cuisine recipes from Spoonacular...');
+
       final response = await http.get(
         Uri.parse('$baseUrl/complexSearch?apiKey=$apiKey&cuisine=$cuisine&number=$number&addRecipeInformation=true&fillIngredients=true'),
       ).timeout(const Duration(seconds: 15));
@@ -60,11 +78,12 @@ class SpoonacularApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final results = data['results'] as List;
+        print('✅ Got ${results.length} $cuisine recipes');
         return results.map((recipe) => _convertToRecipe(recipe)).toList();
       }
       return [];
     } catch (e) {
-      print('Error fetching by cuisine: $e');
+      print('❌ Error fetching by cuisine: $e');
       return [];
     }
   }
@@ -82,7 +101,7 @@ class SpoonacularApiService {
       }
       return null;
     } catch (e) {
-      print('Error getting recipe by ID: $e');
+      print('❌ Error getting recipe by ID: $e');
       return null;
     }
   }
@@ -166,88 +185,17 @@ class SpoonacularApiService {
   /// Check API availability
   Future<bool> isApiAvailable() async {
     try {
+      print('🔍 Checking Spoonacular API availability...');
       final response = await http.get(
         Uri.parse('$baseUrl/random?apiKey=$apiKey&number=1'),
       ).timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
+
+      final isAvailable = response.statusCode == 200;
+      print(isAvailable ? '✅ Spoonacular API is available' : '❌ Spoonacular API not available');
+      return isAvailable;
     } catch (e) {
+      print('❌ API check failed: $e');
       return false;
     }
-  }
-}
-
-/// Fallback to free API without key requirement
-class EdamamApiService {
-  // Edamam API - FREE tier with good recipes
-  // Get free keys at: https://developer.edamam.com/
-  static const String appId = 'YOUR_APP_ID';
-  static const String appKey = 'YOUR_APP_KEY';
-  static const String baseUrl = 'https://api.edamam.com/api/recipes/v2';
-
-  Future<List<Recipe>> searchRecipes(String query, {int number = 20}) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl?type=public&q=$query&app_id=$appId&app_key=$appKey&to=$number'),
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final hits = data['hits'] as List;
-        return hits.map((hit) => _convertToRecipe(hit['recipe'])).toList();
-      }
-      return [];
-    } catch (e) {
-      print('Error with Edamam API: $e');
-      return [];
-    }
-  }
-
-  Recipe _convertToRecipe(Map<String, dynamic> json) {
-    final ingredients = (json['ingredientLines'] as List)
-        .map((ing) => ing.toString())
-        .join('\n');
-
-    // Determine cuisine
-    String cuisine = 'International';
-    if (json['cuisineType'] != null && (json['cuisineType'] as List).isNotEmpty) {
-      final c = json['cuisineType'][0].toString();
-      if (c.contains('italian')) cuisine = 'Italian';
-      else if (c.contains('mexican')) cuisine = 'Mexican';
-      else if (c.contains('chinese') || c.contains('asian')) cuisine = 'Chinese';
-      else if (c.contains('indian')) cuisine = 'Indian';
-      else if (c.contains('japanese')) cuisine = 'Japanese';
-      else if (c.contains('thai')) cuisine = 'Thai';
-      else if (c.contains('mediterranean') || c.contains('greek')) cuisine = 'Mediterranean';
-      else if (c.contains('american')) cuisine = 'American';
-    }
-
-    // Determine meal type
-    String mealType = 'Dinner';
-    if (json['mealType'] != null && (json['mealType'] as List).isNotEmpty) {
-      final m = json['mealType'][0].toString().toLowerCase();
-      if (m.contains('breakfast')) mealType = 'Breakfast';
-      else if (m.contains('lunch')) mealType = 'Lunch';
-      else if (m.contains('dinner')) mealType = 'Dinner';
-      else if (m.contains('snack')) mealType = 'Snack';
-    }
-
-    return Recipe(
-      id: json['uri'].hashCode.abs(),
-      title: json['label'] ?? 'Untitled Recipe',
-      description: 'Delicious ${json['dishType']?.first ?? 'dish'}',
-      ingredients: ingredients,
-      instructions: 'Visit ${json['url']} for full instructions',
-      cuisine: cuisine,
-      mealType: mealType,
-      prepTime: 15,
-      cookTime: (json['totalTime'] ?? 30).toInt(),
-      servings: (json['yield'] ?? 4).toInt(),
-      imagePath: json['image'],
-      userId: -1,
-      isFavorite: false,
-      rating: 4.0,
-      dietaryInfo: (json['dietLabels'] as List?)?.join(', '),
-
-    );
   }
 }

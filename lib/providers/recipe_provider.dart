@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../models/recipe.dart';
 import '../services/recipe_service.dart';
+import '../services/spoonacular_api_service.dart';
 import '../services/hybrid_api_service.dart';
 import '../services/api_favorites_service.dart';
 
 class RecipeProvider with ChangeNotifier {
   final RecipeService _recipeService = RecipeService();
-  final HybridApiService _apiService = HybridApiService();
+  final SpoonacularApiService _spoonacularService = SpoonacularApiService();
+  final HybridApiService _hybridService = HybridApiService();
   final ApiFavoritesService _apiFavoritesService = ApiFavoritesService();
 
   List<Recipe> _localRecipes = [];
@@ -20,6 +22,7 @@ class RecipeProvider with ChangeNotifier {
   String _selectedCuisine = 'All';
   String _searchQuery = '';
   bool _showApiRecipes = true;
+  bool _usingFallbackApi = false;
 
   List<Recipe> get recipes => _filteredRecipes;
   List<Recipe> get localRecipes => _localRecipes;
@@ -37,6 +40,7 @@ class RecipeProvider with ChangeNotifier {
 
     try {
       _localRecipes = await _recipeService.getAllRecipes();
+      debugPrint('Loaded ${_localRecipes.length} local recipes');
       _applyFilters();
     } catch (e) {
       debugPrint('Error loading local recipes: $e');
@@ -51,15 +55,35 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final hasInternet = await _apiService.hasInternetConnection();
-      if (!hasInternet) {
-        debugPrint('No internet connection');
-        _isLoadingApi = false;
-        notifyListeners();
-        return;
-      }
+      debugPrint('Loading recipes from API...');
 
-      _apiRecipes = await _apiService.fetchSharedRecipes();
+      // Try Spoonacular first
+      try {
+        debugPrint('Trying Spoonacular API...');
+        _apiRecipes = await _spoonacularService
+            .fetchRandomRecipes(number: 50)
+            .timeout(const Duration(seconds: 30));
+
+        if (_apiRecipes.isNotEmpty) {
+          debugPrint('Loaded ${_apiRecipes.length} recipes from Spoonacular');
+          _usingFallbackApi = false;
+        } else {
+          throw Exception('No recipes returned from Spoonacular');
+        }
+      } catch (e) {
+        debugPrint('Spoonacular failed: $e');
+        debugPrint('Falling back to TheMealDB...');
+
+        // Fallback to TheMealDB
+        try {
+          _apiRecipes = await _hybridService.fetchSharedRecipes();
+          debugPrint('Loaded ${_apiRecipes.length} recipes from TheMealDB');
+          _usingFallbackApi = true;
+        } catch (e2) {
+          debugPrint('Fallback also failed: $e2');
+          _apiRecipes = [];
+        }
+      }
 
       // Load favorite status for API recipes
       _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds();
@@ -74,6 +98,7 @@ class RecipeProvider with ChangeNotifier {
       _applyFilters();
     } catch (e) {
       debugPrint('Error loading API recipes: $e');
+      _apiRecipes = [];
     }
 
     _isLoadingApi = false;
@@ -90,7 +115,11 @@ class RecipeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _apiRecipes = await _apiService.searchRecipes(query);
+      if (_usingFallbackApi) {
+        _apiRecipes = await _hybridService.searchRecipes(query);
+      } else {
+        _apiRecipes = await _spoonacularService.searchRecipes(query);
+      }
 
       // Update favorite status
       _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds();
@@ -171,7 +200,7 @@ class RecipeProvider with ChangeNotifier {
 
   Future<void> toggleFavorite(Recipe recipe, int userId) async {
     try {
-      // Check if it's an API recipe (negative or very large ID)
+      // Check if it's an API recipe
       if (recipe.userId == -1) {
         // Handle API recipe favorite
         await _apiFavoritesService.toggleFavorite(recipe.id!);
@@ -248,6 +277,13 @@ class RecipeProvider with ChangeNotifier {
             recipe.description.toLowerCase().contains(lowerQuery) ||
             recipe.ingredients.toLowerCase().contains(lowerQuery);
       }).toList();
+    }
+
+    debugPrint('Total filtered recipes: ${_filteredRecipes.length} '
+        '(${_localRecipes.length} local + ${_showApiRecipes ? _apiRecipes.length : 0} API)');
+
+    if (_usingFallbackApi && _apiRecipes.isNotEmpty) {
+      debugPrint('Using TheMealDB as fallback API');
     }
   }
 }
