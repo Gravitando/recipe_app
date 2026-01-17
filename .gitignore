@@ -1,0 +1,65 @@
+############################
+# Miscellaneous / OS
+############################
+*.class
+*.log
+*.pyc
+*.swp
+*.lock
+.DS_Store
+Thumbs.db
+
+############################
+# IDE (Android Studio / IntelliJ)
+############################
+.idea/
+*.iml
+*.ipr
+*.iws
+
+############################
+# VS Code (optional)
+############################
+#.vscode/
+
+############################
+# Flutter / Dart / Pub
+############################
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+
+############################
+# Android
+############################
+android/.gradle/
+android/app/build/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+############################
+# iOS / macOS / Windows (ephemeral)
+############################
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+
+############################
+# SQLite / Local Databases
+############################
+*.db
+*.sqlite
+*.sqlite3
+
+############################
+# Obfuscation / Symbols
+############################
+app.*.symbols
+app.*.map.json
