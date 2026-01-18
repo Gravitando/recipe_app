@@ -60,6 +60,11 @@ class RecipeProvider with ChangeNotifier {
   }
 
   Future<void> loadApiRecipes() async {
+    if (_currentUserId == null) {
+      debugPrint('Cannot load API recipes: No user logged in');
+      return;
+    }
+
     _isLoadingApi = true;
     notifyListeners();
 
@@ -92,7 +97,10 @@ class RecipeProvider with ChangeNotifier {
         }
       }
 
-      _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds();
+      // Load favorites for CURRENT USER ONLY
+      _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds(_currentUserId!);
+
+      // Update favorite status
       _apiRecipes = _apiRecipes.map((recipe) {
         return recipe.copyWith(
           isFavorite: _apiFavoriteIds.contains(recipe.id),
@@ -115,6 +123,8 @@ class RecipeProvider with ChangeNotifier {
       return;
     }
 
+    if (_currentUserId == null) return;
+
     _isLoadingApi = true;
     notifyListeners();
 
@@ -125,7 +135,7 @@ class RecipeProvider with ChangeNotifier {
         _apiRecipes = await _spoonacularService.searchRecipes(query);
       }
 
-      _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds();
+      _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds(_currentUserId!);
       _apiRecipes = _apiRecipes.map((recipe) {
         return recipe.copyWith(
           isFavorite: _apiFavoriteIds.contains(recipe.id),
@@ -149,12 +159,16 @@ class RecipeProvider with ChangeNotifier {
 
   Future<void> loadFavorites(int userId) async {
     try {
+      // Load local favorites
       _favorites = await _recipeService.getFavorites(userId);
-      _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds();
+
+      // Load API favorites for THIS USER ONLY
+      _apiFavoriteIds = await _apiFavoritesService.getFavoriteIds(userId);
       _apiFavorites = _apiRecipes
           .where((recipe) => _apiFavoriteIds.contains(recipe.id))
           .toList();
 
+      debugPrint('User $userId: ${_favorites.length} local + ${_apiFavorites.length} API favorites');
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading favorites: $e');
@@ -201,14 +215,20 @@ class RecipeProvider with ChangeNotifier {
   Future<void> toggleFavorite(Recipe recipe, int userId) async {
     try {
       if (recipe.userId == -1) {
-        await _apiFavoritesService.toggleFavorite(recipe.id!);
+        // API recipe - use user-specific favorites
+        await _apiFavoritesService.toggleFavorite(recipe.id!, userId);
+
+        // Update recipe in list
         final index = _apiRecipes.indexWhere((r) => r.id == recipe.id);
         if (index != -1) {
           _apiRecipes[index] = recipe.copyWith(isFavorite: !recipe.isFavorite);
         }
+
+        // Reload favorites
         await loadFavorites(userId);
         _applyFilters();
       } else {
+        // Local recipe
         await _recipeService.toggleFavorite(recipe);
         final index = _localRecipes.indexWhere((r) => r.id == recipe.id);
         if (index != -1) {
@@ -275,11 +295,7 @@ class RecipeProvider with ChangeNotifier {
       }).toList();
     }
 
-    debugPrint('Total filtered recipes: ${_filteredRecipes.length} '
+    debugPrint('User $_currentUserId: ${_filteredRecipes.length} total '
         '(${userLocalRecipes.length} local + ${_showApiRecipes ? _apiRecipes.length : 0} API)');
-
-    if (_usingFallbackApi && _apiRecipes.isNotEmpty) {
-      debugPrint('Using TheMealDB as fallback API');
-    }
   }
 }
