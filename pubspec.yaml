@@ -1,5 +1,5 @@
 name: recipe_app
-description: A personalized recipe and meal planning mobile application
+description: A new Flutter project.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,23 +9,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   cupertino_icons: ^1.0.2
-  provider: ^6.1.1
+  provider: ^6.0.5
   sqflite: ^2.3.0
-  path_provider: ^2.1.1
+  path: ^1.8.3
   shared_preferences: ^2.2.2
-  intl: ^0.18.1
+  http: ^1.1.0
   google_fonts: ^6.1.0
-  flutter_slidable: ^3.0.1
-  image_picker: ^1.0.4
-  table_calendar: ^3.0.9
-  flutter_rating_bar: ^4.0.1
+  intl: ^0.18.1
+  image_picker: ^1.0.7
+  table_calendar: ^3.0.9        # For meal planner calendar
+  flutter_rating_bar: ^4.0.1    # For recipe ratings
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^2.0.0
 
 flutter:
   uses-material-design: true
-  assets:
